@@ -1,3 +1,44 @@
 <body>
-  <button id="get-annotations">GET annotations</button>
+<div class="container">
+    <div class="row">
+        <div class="col-md-6">
+            <button id="get-annotations" class="btn btn-primary mb-3">
+                Get Annotations
+                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+            </button>
+            <div class="input-group mb-3">
+                <input type="text" id="filter-annotations" class="form-control" placeholder="Search...">
+                <button id="find-annotated" class="btn btn-secondary">Find</button>
+            </div>
+            <textarea id="search-results" class="form-control mb-3"></textarea>
+            <button id="copy-annotations" class="btn btn-info">Copy</button>
+        </div>
+        <div class="col-md-6">
+            <textarea id="source-cells" class="form-control mb-3"></textarea>
+            <button id="get-partners" class="btn btn-primary mb-3">Get Partners</button>
+            <textarea id="partners-results" class="form-control mb-3"></textarea>
+            <div class="input-group mb-3">
+                <input type="number" id="how-many-top-partners" class="form-control" value="50" min="1">
+                <button id="get-partners-of-partners" class="btn btn-secondary">Get Partners of Partners</button>
+            </div>
+            <textarea id="partners-of-partners-results" class="form-control mb-3"></textarea>
+        </div>
+    </div>
+    <div id="third-column" class="row mt-3 d-none">
+        <div class="col-md-12">
+            <!-- Content for the third column can be added here -->
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('copy-annotations').addEventListener('click', function() {
+        const searchResults = document.getElementById('search-results');
+        searchResults.select();
+        document.execCommand('copy');
+    });
+
+    // Add event listeners and logic for other buttons as needed
+</script>
+
 </body>

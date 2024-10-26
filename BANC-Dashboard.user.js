@@ -549,9 +549,117 @@ Z.tableToIPC=function(a,b){return("stream"===(void 0===b?"stream":b)?yl:zl).writ
 (async function() {
   'use strict'
 
-  document.getElementById('get-annotations').addEventListener('click', e => getEntries('cell_info'))
+  // Inject CSS styles
+  const styles = `
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f0f0f0;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .container {
+      width: 100%;
+      height: 100%;
+      margin: 0 auto;
+      background-color: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .btn {
+      display: inline-block;
+      font-weight: 400;
+      text-align: center;
+      vertical-align: middle;
+      user-select: none;
+      border: none;
+      padding: 12px 24px;
+      font-size: 1rem;
+      line-height: 1.5;
+      border-radius: 0.25rem;
+      transition: background-color 0.15s ease-in-out;
+      background-color: #ff8c00;
+      color: white;
+      margin: 10px;
+      cursor: pointer;
+    }
+
+    .btn:hover {
+      background-color: #e67e00;
+    }
+
+    .form-control {
+      display: block;
+      width: 400px;
+      height: 200px;
+      padding: 0.375rem 0.75rem;
+      font-size: 1rem;
+      line-height: 1.5;
+      color: #495057;
+      background-color: #fff;
+      background-clip: padding-box;
+      border: 1px solid #ced4da;
+      border-radius: 0.25rem;
+      transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+      margin-right: 10px;
+    }
+
+    .form-control:focus {
+      border: 1px solid #555;
+      outline: none;
+    }
+
+    input.form-control {
+      display: inline-block;
+      width: 200px;
+      height: 50px;
+    }
+
+    input[type=number].form-control {
+      width: 100px;
+    }
+
+    .spinner-border {
+      display: inline-block;
+      width: 0.7rem;
+      height: 0.7rem;
+      vertical-align: text-bottom;
+      border: 0.25em solid currentColor;
+      border-right-color: transparent;
+      border-radius: 50%;
+      animation: spinner-border .75s linear infinite;
+      margin-left: 5px;
+    }
+
+    @keyframes spinner-border {
+      to { transform: rotate(360deg); }
+    }
+    
+    .d-none {
+      display: none !important;
+    }
+  `;
+
+  // Create a style element and append it to the head
+  const styleElement = document.createElement('style');
+  styleElement.textContent = styles;
+  document.head.appendChild(styleElement);
+
+
+  let annotationsTable = []
 
   async function getEntries(tableName) {
+    document.querySelector('.spinner-border').classList.remove('d-none')
+
     const promise = new Promise((resolve, reject) => {
       GM.xmlHttpRequest({
         url: "https://cave.fanc-fly.com/materialize/api/v3/datastack/brain_and_nerve_cord/query?return_pyarrow=True&arrow_format=True&merge_reference=False&allow_missing_lookups=False&allow_invalid_root_ids=False",
@@ -565,24 +673,131 @@ Z.tableToIPC=function(a,b){return("stream"===(void 0===b?"stream":b)?yl:zl).writ
         responseType: 'arraybuffer', // Arrow data is binary, so use arraybuffer,
         // table: backbone_proofread
         data: `{"table": "${tableName}", "timestamp": "${new Date(Date.now()).toISOString()}"}`,
-        onload: response => resolve(response.response)
+        onload: response => {
+          document.querySelector('.spinner-border').classList.add('d-none');
+          resolve(response.response)
+        }
       })
     })
   
     // Await the response (an ArrayBuffer)
     const arrayBuffer = await promise;
-    console.log(arrayBuffer.length)
-  
-    // Create an Arrow Table from the Uint8Array
-    const table = Arrow.tableFromIPC(arrayBuffer);
-  
-    // Access the data in the Arrow table
-    console.log(table.schema); // Print the schema of the table
-    table.toArray().forEach(row => console.log(row.toString())); // Iterate over the rows
-  
+    annotationsTable = Arrow.tableFromIPC(arrayBuffer)
+
   }
 
+  document.getElementById('find-annotated').addEventListener('click', e => {
+    const filter = document.getElementById('filter-annotations').value
+    if (!filter) return
 
+    const rootIds = []
+    for (let row of annotationsTable) {
+      let correct = false
+      let rootId = ''
+      for (let cell of row) {
+        switch (cell[0]) {
+          case 'pt_root_id': rootId = cell[1]; break
+          case 'tag': correct = correct || cell[1] === filter; break
+          case 'tag2': correct = correct || cell[1].split(' ').indexOf(filter) !== -1
+        }
+      }
+      if (correct) {
+        rootIds.push(rootId)
+      }
+    }
+
+    document.getElementById('search-results').value = rootIds.join('\r\n')
+  })
+  
+document.getElementById('get-annotations').addEventListener('click', e => getEntries('cell_info'))
+
+
+
+
+/*
+  const DB_NAME = 'BANC_Dashboard_DB';
+  const DB_VERSION = 1;
+
+  // Function to open the IndexedDB database
+function openDB(storeName = 'default') {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    
+    request.onerror = event => reject('Error opening database');
+    
+    request.onsuccess = event => resolve(event.target.result);
+    
+    request.onupgradeneeded = event => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(storeName)) {
+        db.createObjectStore(storeName, { keyPath: 'id' });
+      }
+    };
+  });
+}
+
+// Function to save data to IndexedDB
+async function saveData(storeName, key, value) {
+  const db = await openDB(storeName);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([storeName], 'readwrite');
+    const store = transaction.objectStore(storeName);
+    
+    const request = store.put({ id: key, value: value });
+    
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(`Error saving data for key: ${key}`);
+  });
+}
+
+// Function to load data from IndexedDB
+async function loadData(storeName, key) {
+  const db = await openDB(storeName);
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([storeName], 'readonly');
+    const store = transaction.objectStore(storeName);
+    const request = store.get(key);
+    
+    request.onsuccess = () => {
+      resolve(request.result ? request.result.value : null);
+    };
+    
+    request.onerror = () => reject(`Error loading data for key: ${key}`);
+  });
+}
+
+// Load saved annotations when the page loads
+let annotations = [];
+loadData('annotations', 'annotationsList').then(loadedAnnotations => {
+  annotations = loadedAnnotations || [];
+  console.log('Loaded annotations:', annotations);
+}).catch(error => {
+  console.error('Error loading annotations:', error);
+});
+
+// Modify the existing event listener to include saving annotations
+document.getElementById('get-annotations').addEventListener('click', async (e) => {
+  try {
+    await getEntries('cell_info');
+    // After getting entries, save the current annotations
+    await saveData('annotations', 'annotationsList', annotations);
+    console.log('Annotations saved after getting entries');
+  } catch (error) {
+    console.error('Error getting entries or saving annotations:', error);
+  }
+});
+
+loadData('annotations', 'annotationsList').then(loadedAnnotations => {
+  const input = document.getElementById('annotation-input');
+  if (loadedAnnotations && loadedAnnotations.length > 0) {
+    // If there are annotations, load the most recent one into the input field
+    input.value = loadedAnnotations[loadedAnnotations.length - 1];
+  }
+  console.log('Loaded annotations into input field');
+}).catch(error => {
+  console.error('Error loading annotations into input field:', error);
+});
+*/
   
 
 
