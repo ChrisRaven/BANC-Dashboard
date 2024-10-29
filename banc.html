@@ -1,44 +1,66 @@
 <body>
-<div class="container">
+    <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+    
     <div class="row">
         <div class="col-md-6">
+            <h2>Find annotated</h2>
             <button id="get-annotations" class="btn btn-primary mb-3">
                 Get Annotations
-                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
             </button>
             <div class="input-group mb-3">
                 <input type="text" id="filter-annotations" class="form-control" placeholder="Search...">
                 <button id="find-annotated" class="btn btn-secondary">Find</button>
             </div>
+            results
             <textarea id="search-results" class="form-control mb-3"></textarea>
             <button id="copy-annotations" class="btn btn-info">Copy</button>
         </div>
         <div class="col-md-6">
+            <h2>Find synaptic partners</h2>
+            source
             <textarea id="source-cells" class="form-control mb-3"></textarea>
             <button id="get-partners" class="btn btn-primary mb-3">Get Partners</button>
+            <br>
+            partners
             <textarea id="partners-results" class="form-control mb-3"></textarea>
             <div class="input-group mb-3">
-                <input type="number" id="how-many-top-partners" class="form-control" value="50" min="1">
+                <button id="copy-partners" class="btn btn-info">Copy</button>
                 <button id="get-partners-of-partners" class="btn btn-secondary">Get Partners of Partners</button>
+                <input type="number" id="how-many-top-partners" class="form-control" value="50" min="1">
             </div>
+            partners of most common partners
             <textarea id="partners-of-partners-results" class="form-control mb-3"></textarea>
+            <button id="copy-partners-of-partners" class="btn btn-info">Copy</button>
+        </div>
+        <div class="col-md-6">
+            <h2>Find potentially outdated</h2>
+            source
+            <textarea id="potentially-outdated" class="form-control mb-3"></textarea>
+            <button id="update-outdated" class="btn btn-info">Update</button>
+            <br>
+            source without outdated
+            <textarea id="without-outdated" class="form-control mb-3"></textarea>
+            <button id="copy-without-outdated" class="btn btn-info">Copy</button>
+            <br>
+            updated
+            <textarea id="updated" class="form-control mb-3"></textarea>
+            <button id="copy-updated" class="btn btn-info">Copy</button>
+        </div>
+        <div class="col-md-6">
+            <h2>Find proofread</h2>
+            source
+            <textarea id="proofread-source" class="form-control mb-3"></textarea>
+            <button id="get-proofread" class="btn btn-info">Get</button>
+            <br>
+            proofread
+            <textarea id="proofread-results" class="form-control mb-3"></textarea>
+            <button id="copy-proofread" class="btn btn-info">Copy</button>
+            <br>
+            not proofread
+            <textarea id="not-proofread-results" class="form-control mb-3"></textarea>
+            <button id="copy-not-proofread" class="btn btn-info">Copy</button>
+            </div>
         </div>
     </div>
-    <div id="third-column" class="row mt-3 d-none">
-        <div class="col-md-12">
-            <!-- Content for the third column can be added here -->
-        </div>
-    </div>
-</div>
-
-<script>
-    document.getElementById('copy-annotations').addEventListener('click', function() {
-        const searchResults = document.getElementById('search-results');
-        searchResults.select();
-        document.execCommand('copy');
-    });
-
-    // Add event listeners and logic for other buttons as needed
-</script>
 
 </body>

@@ -549,7 +549,8 @@ Z.tableToIPC=function(a,b){return("stream"===(void 0===b?"stream":b)?yl:zl).writ
 (async function() {
   'use strict'
 
-  // Inject CSS styles
+  // SECTION: CSS
+
   const styles = `
     body {
       font-family: Arial, sans-serif;
@@ -558,21 +559,16 @@ Z.tableToIPC=function(a,b){return("stream"===(void 0===b?"stream":b)?yl:zl).writ
       padding: 20px;
     }
 
-    .container {
-      width: 100%;
-      height: 100%;
-      margin: 0 auto;
-      background-color: white;
-      padding: 30px;
-      border-radius: 8px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-
     .row {
       display: flex;
       flex-wrap: wrap;
       justify-content: center;
-      margin-bottom: 20px;
+    }
+
+    .col-md-6 {
+      padding: 0 10px;
+      border-right: 1px solid lightgray;
+      margin-left: 10px;
     }
 
     .btn {
@@ -589,7 +585,7 @@ Z.tableToIPC=function(a,b){return("stream"===(void 0===b?"stream":b)?yl:zl).writ
       transition: background-color 0.15s ease-in-out;
       background-color: #ff8c00;
       color: white;
-      margin: 10px;
+      margin: 10px 0;
       cursor: pointer;
     }
 
@@ -625,10 +621,11 @@ Z.tableToIPC=function(a,b){return("stream"===(void 0===b?"stream":b)?yl:zl).writ
     }
 
     input[type=number].form-control {
-      width: 100px;
+      width: 80px;
     }
 
     .spinner-border {
+      position: absolute;
       display: inline-block;
       width: 0.7rem;
       height: 0.7rem;
@@ -647,16 +644,70 @@ Z.tableToIPC=function(a,b){return("stream"===(void 0===b?"stream":b)?yl:zl).writ
     .d-none {
       display: none !important;
     }
-  `;
+  `
 
   // Create a style element and append it to the head
-  const styleElement = document.createElement('style');
-  styleElement.textContent = styles;
-  document.head.appendChild(styleElement);
+  const styleElement = document.createElement('style')
+  styleElement.textContent = styles
+  document.head.appendChild(styleElement)
 
+
+  // SECTION: helper functions
+
+  function copyTextareaToClipboard(copyButtonId, textareaId) {
+    document.getElementById(copyButtonId).addEventListener('click', e => {
+      navigator.clipboard.writeText(cleanInput(document.getElementById(textareaId).value).join('\r\n'))
+    })
+  }
+
+  // source: the AI generator in the Cursor editor
+  function cleanInput(input) {
+    // If input is already an array, clean each entry
+    if (Array.isArray(input)) {
+      return input.map(item => item.toString().trim());
+    }
+
+    // If input is string, split by multiple separators and clean
+    if (typeof input === 'string') {
+      // Split by commas, semicolons, newlines (including Windows \r\n) and multiple spaces
+      const splitArray = input
+        .split(/[,;\r?\n\s]+/)
+        .filter(item => item.length > 0) // Remove empty entries
+        .map(item => item.trim());
+      
+      return splitArray;
+    }
+
+    // Return empty array for invalid input
+    return [];
+  }
+
+  function compareArrays(array1, array2) {
+    // Convert arrays to Sets for efficient lookup
+    const set1 = new Set(array1)
+    const set2 = new Set(array2.map(el => BigInt(el)))
+
+    return {
+      common: [...set1.intersection(set2)],
+      onlyInSecond: [...set2.difference(set1)]
+    }
+  }
+
+  function convertBigIntToString(jsonString) {
+    // Use a regex to match numbers and check if they exceed MAX_SAFE_INTEGER
+    const maxSafeInteger = Number.MAX_SAFE_INTEGER;
+
+    return jsonString.replace(/(\d{1,})(?=\D|\s|$)/g, (match) => {
+        const number = BigInt(match);
+        return number > maxSafeInteger ? `"${match}"` : match;
+    });
+}
+  
+
+  // SECTION: find annotated
 
   let annotationsTable = []
-
+// test IDs (outdated): 720575941505773381, 720575941459216595, 720575941592289899
   async function getEntries(tableName) {
     document.querySelector('.spinner-border').classList.remove('d-none')
 
@@ -671,46 +722,288 @@ Z.tableToIPC=function(a,b){return("stream"===(void 0===b?"stream":b)?yl:zl).writ
           Cookie: 'middle_auth_token=' + token
         },
         responseType: 'arraybuffer', // Arrow data is binary, so use arraybuffer,
-        // table: backbone_proofread
         data: `{"table": "${tableName}", "timestamp": "${new Date(Date.now()).toISOString()}"}`,
         onload: response => {
-          document.querySelector('.spinner-border').classList.add('d-none');
+          document.querySelector('.spinner-border').classList.add('d-none')
           resolve(response.response)
         }
       })
     })
   
-    // Await the response (an ArrayBuffer)
-    const arrayBuffer = await promise;
-    annotationsTable = Arrow.tableFromIPC(arrayBuffer)
-
+    return await promise
   }
+  
+  document.getElementById('get-annotations').addEventListener('click', async e => {
+    const arrayBuffer = await getEntries('cell_info')
+    annotationsTable = Arrow.tableFromIPC(arrayBuffer)
+  })
 
   document.getElementById('find-annotated').addEventListener('click', e => {
-    const filter = document.getElementById('filter-annotations').value
-    if (!filter) return
+    const filter = new Set(document.getElementById('filter-annotations').value.split(',').map(el => el.trim()))
+    if (!filter.size) return
 
     const rootIds = []
+
     for (let row of annotationsTable) {
-      let correct = false
-      let rootId = ''
-      for (let cell of row) {
-        switch (cell[0]) {
-          case 'pt_root_id': rootId = cell[1]; break
-          case 'tag': correct = correct || cell[1] === filter; break
-          case 'tag2': correct = correct || cell[1].split(' ').indexOf(filter) !== -1
-        }
-      }
-      if (correct) {
-        rootIds.push(rootId)
+      row = row.toArray()
+      if (filter.has(row[6]) || new Set(row[7].split(' ')).intersection(filter).size) {
+        rootIds.push(row[10])
       }
     }
 
     document.getElementById('search-results').value = rootIds.join('\r\n')
   })
-  
-document.getElementById('get-annotations').addEventListener('click', e => getEntries('cell_info'))
 
+  copyTextareaToClipboard('copy-annotations', 'search-results')
+
+
+  // SECTION: find synaptic partners
+
+  async function getSynapticPartners(rootIds) {
+    document.querySelector('.spinner-border').classList.remove('d-none')
+
+    const promise = new Promise((resolve, reject) => {
+      GM.xmlHttpRequest({
+        url: "https://cave.fanc-fly.com/materialize/api/v3/datastack/brain_and_nerve_cord/version/372/table/synapses_v1/query?return_pyarrow=True&arrow_format=True&split_positions=True",
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept-Encoding': 'gzip',
+          Authorization: 'Bearer ' + token,
+          Cookie: 'middle_auth_token=' + token
+        },
+        data: JSON.stringify({
+          filter_in_dict: {
+            synapses_v1: {
+              pre_pt_root_id: rootIds
+            }
+          },
+          filter_equal_dict: {
+            synapses_v1: {}
+          }
+        }),
+        responseType: 'arraybuffer',
+        onload: response => {
+          document.querySelector('.spinner-border').classList.add('d-none')
+          const buffer = new Uint8Array(response.response);
+                console.log("Response size:", buffer.byteLength);
+                console.log("Initial bytes of response:", buffer.slice(0, 64));
+          resolve(response)
+        },
+        onerror: error => {
+          document.querySelector('.spinner-border').classList.add('d-none')
+          reject(error)
+        }
+      })
+    })
+  
+    return await promise
+  }
+
+  const synapticPartners = []
+
+  document.getElementById('get-partners').addEventListener('click', async e => {
+    const sourceIds = cleanInput(document.getElementById('source-cells').value)
+    const synapsesBuffer = await getSynapticPartners(sourceIds)
+    console.log(synapsesBuffer)
+    const synapsesTable = Arrow.tableFromIPC(synapsesBuffer)
+    console.log(synapsesTable)
+    for (let row of synapsesTable) {
+      synapticPartners.push(row['post_pt_root_id'])
+    }
+
+    // convert to a Set to get rid of duplicates
+    const stringIds = new Set(synapticPartners)
+    document.getElementById('partners-results').value = Array.from(stringIds, id => id.toString()).join('\r\n')
+  })
+
+  copyTextareaToClipboard('copy-partners', 'partners-results')
+
+  function getMostCommon(array, count) {
+    const frequencyMap = new Map();
+  
+    // Build frequency map using Map to handle BigInt keys
+    for (const item of array) {
+      frequencyMap.set(item, (frequencyMap.get(item) || 0) + 1);
+    }
+
+    // Sort and slice in one step, returning only the top `count` BigInts
+    return [...frequencyMap.keys()]
+      .sort((a, b) => frequencyMap.get(b) - frequencyMap.get(a))
+      .slice(0, count);
+  }
+
+  document.getElementById('get-partners-of-partners').addEventListener('click', async e => {
+    const howMany = parseInt(document.getElementById('how-many-top-partners').value) || 50
+
+    const mostCommonPartners = getMostCommon(synapticPartners, howMany)
+    console.log('most common')
+    console.log(mostCommonPartners)
+    const partnersOfPartnersBuffer = await getSynapticPartners(mostCommonPartners.map(id => id.toString()))
+console.log(partnersOfPartnersBuffer)
+    const partnersOfPartnersTable = Arrow.tableFromIPC(partnersOfPartnersBuffer)
+
+    const ids = new Set()
+    for (let row of partnersOfPartnersTable) {
+      ids.add(row['post_pt_root_id'])
+    }
+
+    document.getElementById('partners-of-partners-results').value = Array.from(ids, id => id.toString()).join('\r\n')
+  })
+
+  copyTextareaToClipboard('copy-partners-of-partners', 'partners-of-partners-results')
+
+
+  // SECTION: find potentially outdated
+
+  async function checkAndUpdateRoots(nodeIds) {
+    // Check if roots are latest
+    const latestResponse = await makeRequest({
+      url: "https://cave.fanc-fly.com/segmentation/api/v1/table/wclee_fly_cns_001/is_latest_roots",
+      method: 'POST',
+      data: { node_ids: nodeIds }
+    })
+
+    const results = []
+    const outdated = []
+    const currentTimestamp = Date.now() / 1000 // Current time in seconds
+
+    for (let i = 0; i < nodeIds.length; i++) {
+      if (latestResponse.is_latest[i]) continue
+
+      const nodeId = nodeIds[i]
+      outdated.push(nodeId)
+
+      // Get root timestamps
+      const timestampResponse = await makeRequest({
+        url: `https://cave.fanc-fly.com/segmentation/api/v1/table/wclee_fly_cns_001/root_timestamps?latest=False&timestamp=${currentTimestamp}`,
+        method: 'POST',
+        data: { node_ids: [nodeId] }
+      })
+
+      const pastTimestamp = timestampResponse.timestamp[0]
+
+      // Get lineage graph
+      const lineageResponse = await makeRequest({
+        url: "https://cave.fanc-fly.com/segmentation/api/v1/table/wclee_fly_cns_001/lineage_graph_multiple",
+        method: 'POST',
+        data: {
+          root_ids: [nodeId],
+          timestamp_past: pastTimestamp,
+          timestamp_future: currentTimestamp
+        },
+        processResponse: responseText => {
+          const data = JSON.parse(convertBigIntToString(responseText))
+          const leaves = getLatestLeaves(data)
+          console.log(leaves)
+          return leaves
+        }
+      })
+
+      results.push(lineageResponse)
+      document.getElementById('updated').value = results.join('\r\n')
+      
+    }
+
+    document.getElementById('without-outdated').value = [...(new Set(nodeIds).difference(new Set(outdated)))].join('\r\n')
+    return results
+  }
+
+  // Helper function to make API requests
+  async function makeRequest({url, method, data, processResponse}) {
+    document.querySelector('.spinner-border').classList.remove('d-none')
+
+    return new Promise((resolve, reject) => {
+      GM.xmlHttpRequest({
+        url,
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + token,
+          Cookie: 'middle_auth_token=' + token
+        },
+        data: JSON.stringify(data),
+        onload: response => {
+          if (processResponse) {
+            resolve(processResponse(response.responseText))
+          }
+          else {
+            resolve(JSON.parse(response.responseText))
+          }
+          document.querySelector('.spinner-border').classList.add('d-none')
+          reject()
+        },
+        onerror: error => {
+          document.querySelector('.spinner-border').classList.add('d-none')
+          reject()
+        }
+      })
+    })
+  }
+
+  // Get latest leaf nodes from graph data
+  function getLatestLeaves(graphData) {
+    const { nodes, links } = graphData
+    
+    // Find nodes without outgoing edges
+    const outgoingNodes = new Set(links.map(link => link.source))
+    const leaves = nodes.filter(node => !outgoingNodes.has(node.id))
+    
+    // Sort by timestamp descending
+    leaves.sort((a, b) => b.timestamp - a.timestamp)
+
+
+    
+    return leaves.map(leaf => leaf.id)
+  }
+
+  document.getElementById('update-outdated').addEventListener('click', e => {
+    const ids = cleanInput(document.getElementById('potentially-outdated').value)
+    checkAndUpdateRoots(ids)
+  })
+
+  copyTextareaToClipboard('copy-without-outdated', 'without-outdated')
+  copyTextareaToClipboard('copy-updated', 'updated')
+
+
+  // SECTION: find proofread
+  
+  document.getElementById('get-proofread').addEventListener('click', async e => {
+    const arrayBuffer = await getEntries('backbone_proofread')
+    const proofread = Arrow.tableFromIPC(arrayBuffer)
+
+    const proofreadIds = []
+    for (let row of proofread) {
+      proofreadIds.push(row.toArray()[10])
+    }
+
+    const inputs = cleanInput(document.getElementById('proofread-source').value)
+
+    const outputs = compareArrays(proofreadIds, inputs)
+
+    document.getElementById('proofread-results').value = outputs.common.join('\r\n')
+    document.getElementById('not-proofread-results').value = outputs.onlyInSecond.join('\r\n')
+  })
+
+  copyTextareaToClipboard('copy-proofread', 'proofread-results')
+  copyTextareaToClipboard('copy-not-proofread', 'not-proofread-results')
+
+
+
+/*
+is_latest_roots
+https://cave.fanc-fly.com/segmentation/api/v1/table/wclee_fly_cns_001/is_latest_roots {"node_ids": [720575941505773381, 720575941459216595, 720575941592289899]}
+
+get timestamp
+https://cave.fanc-fly.com/segmentation/api/v1/table/wclee_fly_cns_001/root_timestamps {"node_ids": [720575941459216595]} {'latest': False, 'timestamp': 1730063268.684059}
+timestamp_root
+2024-07-02 01:03:23.419000+00:00
+timestamp
+2024-10-27 21:07:48.842329+00:00
+update
+https://cave.fanc-fly.com/segmentation/api/v1/table/wclee_fly_cns_001/lineage_graph_multiple {"root_ids": [720575941459216595]} {'timestamp_past': 1719882203.419, 'timestamp_future': 1730063268.842329}
+[720575941470349067 720575941449402190]
+*/
 
 
 
